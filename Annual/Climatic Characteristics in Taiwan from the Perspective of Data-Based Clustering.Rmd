@@ -1,0 +1,286 @@
+---
+title: "Climatic Characteristics in Taiwan from the Perspective of Data-Based Clustering"
+author: "Hung-Kai, Kung"
+date: "2019/8/26"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+```{r setup, include=FALSE}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(ggplot2) #visualization
+library(ggfortify) #autoplot
+library(ggmap) #ggplot on map
+library(ggrepel) #labels on ggplot
+library(gridExtra) #image layout
+library(factoextra) #PCA visualization
+knitr::opts_chunk$set(echo = TRUE)
+options(knitr.table.format = "html")
+setwd("D:/OneDrive - g.ntu.edu.tw/Documents/108-I/中研院環變中心實習/Annual")
+```
+
+## Abstract
+From our general knowledge, it’s easy to comprehend the climatic characteristics in Taiwan. For example, Taiwan is effected by distinct monsoons in different seasons, and its precipitation is highly dependent on spatial and temporal distribution. Therefore, this study attempts to adopt the perspective of data science, digs deep into the data from **Central Weather Bureau (CWB)**, and sees whether it’s possible to find the similar features, through spatial and temporal clustering. Finally, the study has a little comparison between the clustering results and the present method.
+
+## Data
+This study utilizes the data from those weather stations which belong to CWB directly. During the study time periods (1980 ~ 2018), there are 21 stations all over Taiwan without suspension or migration, and the data from those stations are the main sources for analysis in this study. Since the study focuses on annual variations, all the statistics are derived from the daily data of the stations. The data downloaded includes two sections, *README* and *DATA*, which are shown below. The former gives directions about how to take advantages of the data, and explains some special codes when the instruments of the station malfunctioning; the latter are numerous numbers recording every atmospheric conditions detailly which also have many interesting facts to dig deeper into. Besides, this study aims at grouping weather stations, and dividing the whole year based on the similarity of spatial and temporal characteristics. The following data are in use, including:
+
+* Precipitation (PP01): unit: mm
+* Average Station Pressure (PS01): unit: hPa
+  * Since the data of average sea level pressures (PS02) wasn’t record until 1999. 
+* Average Temperature (TX01): unit: °C
+* Average Wind Speed (WD01): unit: m/s
+* Average Wind Direction (WD02): unit: 360 degrees
+
+![](Raw_data.png){ width=100% }
+
+Furthermore, when instruments going wrong, the missing values are replaced with NAs. For rain traces, which means that it rains less than 0.1 mm, the values are set to 0.
+
+## Methodology
+This study aims at spatial and temporal clustering, hence, it’s necessary to shed light on the clustering method in use, and how to decide the optimal number of clusters, which are *K-means*, and *Elbow Method*, respectively.
+
+### Principle Components Analysis (PCA)
+In most cases, a response variable has more than one explanatory variables. However, some of them do matter, some of them don’t. Following PCA,  through axes rotation, one can find major components which can explain most variances. That is, one may need many explanatory variables originally, after PCA, one is able to explain those variances through some major components. In other words, the dimension is reduced by grasping essence. In practice, this study applies PCA to find the best two principle components for better visualizations of K-means clustering afterward.
+
+### K-means
+![](k_means mechanism.png){ width=100% }
+
+When it comes to clustering, there are plenty of ways to consider. K-means is a method which is commonly used, and easy to comprehend. The mechanism of K-means is shown in the figure above[1]. At first, the number of clusters should be decided, which is determined by the Elbow Method. When decision is made, take 2 for example, 2 points of all the data points are picked randomly as the center of each group. After that, the distances of the center points and all the other data points are calculated. Compare the distances between the point and two different centers, the shorter one means that the point belongs to that group. From now on, all the points are roughly separated into two groups. Afterward, compute the mean center for each group again, make these new points as the new center points, and conduct the procedures mentioned above repeatedly until the clustering result no longer changes.  
+
+### Elbow Method
+The goal of clustering is to minimize the variances inside the same group, but maximize the differences between different groups. Following this logic, one can find an optimal number of clusters which makes the total of sum of square errors (SSE) inside each group small enough, that is, optimizes total within sum of square (WSS). Furthermore, the more clusters there are, the smaller WSS is. When the slope of WSS changes dramatically, the elbow point will be the best number of clustering. The procedure aforesaid is the Elbow Method, which is also the way to decide the optimal number of clustering in this study. However, deciding the elbow points can be kind of subjective and thus causes some ambiguity.
+
+## Spatial Clustering
+In this section, this study tries to group the 21 stations based on the mean of monthly precipitation between 1980 and 2018.
+```{r spatial clustering I, echo=FALSE, message=FALSE, warning=FALSE}
+data = read.csv("Result/PP01_cluster/Monthly_cwb_loc_PP01.csv")
+
+#PCA & K-means Cluster
+data.pca = prcomp(data[5:16])
+set.seed(1)
+data.k = kmeans(data[5:16], centers = 4)
+data["cluster"] = factor(data.k[["cluster"]])
+
+#Optimal Cluster Plot
+plot1 = fviz_nbclust(data[5:16], 
+                     FUNcluster = kmeans,# K-Means
+                     method = "wss",     # total within sum of square
+) + geom_vline(xintercept = 6, linetype = 2) + theme_minimal()
+
+#Scree Plot
+plot2 = fviz_eig(data.pca)
+
+grid.arrange(plot1, plot2, ncol=2)
+```
+
+The left figure shows that the best number of clusters in this case may be 6. However, since there are only 21 stations, it seems that too many to have 6 clusters, and hard to give reasonable explanations. Instead, this study tries to group those stations into four sections. The figure right shows that the first two principle components can explain approximately 90% of total variances, and the visualization afterward is based on these two major components.
+
+```{r spatial clustering II, echo=FALSE, message=FALSE, warning=FALSE}
+#Bi Plot
+plot3 = fviz_pca_biplot(data.pca, geom.ind = "point")
+
+#Cluster Plot
+plot4 = autoplot(data.k, data = data[5:16], frame = T) +
+        theme_minimal()
+
+grid.arrange(plot3, plot4, ncol=2)
+```
+
+From the left figure, one can notice that cool seasons (Oct, Nov, Dec, Jan, Feb) and warm seasons (May, Jun, Jul, Aug) have more influences on Dim1 and Dim2, respectively, which means that the clustering result (the right figure) relies more on the cool and warm seasons than other seasons. Besides, since Dim1 explains more variances than Dim2, cool seasons are more important than warm seasons when it comes to clustering based on precipitation of stations.
+
+Cluster | Station
+--------| -------------
+N       | 鞍部、竹子湖、基隆
+W       | 梧棲、臺中、嘉義、澎湖、東吉島 
+CS      | 日月潭、阿里山、玉山、高雄、大武、恆春
+E       | 彭佳嶼、淡水、宜蘭、花蓮、成功、臺東、蘭嶼
+
+```{r spatial clustering III, echo=FALSE, message=FALSE, warning=FALSE}
+#Map
+tw <- c(118.2, 21.5, 122.5, 26.4)
+Map <- get_stamenmap(tw, zoom = 8, source = "stamen", maptype = "toner-lite")
+
+ggmap(Map, darken = c(0.5, "white")) +
+      geom_point(data = data, aes(x = Lon, y = Lat, col = cluster), size = 3) +
+      geom_label_repel(data = data, aes(x = Lon, y = Lat, label = name),
+                box.padding   = 0.35, point.padding = 0.5, size = 3)
+```
+
+Afterward, let’s map the clustering result on the map, as shown above. All the CWB stations are separated into four categories, North(N), West(W), Center & South(CS) and East(E). Besides, the result of Temporal Clustering I (below), is worthy of comparing the spatial difference here.
+
+## Temporal Clustering I
+In this section, continued with Spatial Clustering result, this study wants to separate a year into a few parts in different sections of Taiwan based on the monthly precipitation of 1980 to 2018, and see whether time clustering is capable of differentiating wet and dry seasons.
+
+```{r temporal clustering I, echo=FALSE, message=FALSE, warning=FALSE}
+#Preparation
+all = read.csv("Result/PP01_cluster/Monthly_cwb_all_PP01.csv")
+ce = read.csv("Result/PP01_cluster/Monthly_cwb_ce_PP01.csv")
+cn = read.csv("Result/PP01_cluster/Monthly_cwb_cn_PP01.csv")
+cw = read.csv("Result/PP01_cluster/Monthly_cwb_cw_PP01.csv")
+cs = read.csv("Result/PP01_cluster/Monthly_cwb_cs_PP01.csv")
+
+all$month = as.factor(all$month)
+all["mean"] = apply(all[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+all["upper"] = apply(all[,2:40], 1, function (x) max(x, na.rm = T))
+all["lower"] = apply(all[,2:40], 1, function (x) min(x, na.rm = T))
+
+ce$month = as.factor(ce$month)
+ce["mean"] = apply(ce[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+ce["upper"] = apply(ce[,2:40], 1, function (x) max(x, na.rm = T))
+ce["lower"] = apply(ce[,2:40], 1, function (x) min(x, na.rm = T))
+
+cn$month = as.factor(cn$month)
+cn["mean"] = apply(cn[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+cn["upper"] = apply(cn[,2:40], 1, function (x) max(x, na.rm = T))
+cn["lower"] = apply(cn[,2:40], 1, function (x) min(x, na.rm = T))
+
+cw$month = as.factor(cw$month)
+cw["mean"] = apply(cw[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+cw["upper"] = apply(cw[,2:40], 1, function (x) max(x, na.rm = T))
+cw["lower"] = apply(cw[,2:40], 1, function (x) min(x, na.rm = T))
+
+cs$month = as.factor(cs$month)
+cs["mean"] = apply(cs[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+cs["upper"] = apply(cs[,2:40], 1, function (x) max(x, na.rm = T))
+cs["lower"] = apply(cs[,2:40], 1, function (x) min(x, na.rm = T))
+
+#K-means
+set.seed(1)
+all.k = kmeans(all[2:40], centers = 2, iter.max = 100)
+all["cluster"] = factor(all.k[["cluster"]])
+
+set.seed(1)
+ce.k = kmeans(ce[2:40], centers = 2, iter.max = 100)
+ce["cluster"] = factor(ce.k[["cluster"]])
+
+set.seed(1)
+cn.k = kmeans(cn[2:40], centers = 2, iter.max = 100)
+cn["cluster"] = factor(cn.k[["cluster"]])
+
+set.seed(1)
+cw.k = kmeans(cw[2:40], centers = 2, iter.max = 100)
+cw["cluster"] = factor(cw.k[["cluster"]])
+
+set.seed(1)
+cs.k = kmeans(cs[2:40], centers = 2, iter.max = 100)
+cs["cluster"] = factor(cs.k[["cluster"]])
+
+#Plot
+vis.vali = function(data, figName) {
+  ret = ggplot(data = data) +
+    geom_col(aes_string(x = "month", y = "mean", fill = "cluster")) +
+    geom_linerange(aes(x = month, ymin = lower, ymax = upper), size = 2, col = "#00000033") +
+    scale_x_discrete(labels = month.abb) +
+    ylab("mean(mm)") +
+    theme_minimal() +
+    theme(axis.title.x = element_blank(), legend.position = "none") + 
+    ggtitle(figName)
+  return(ret)
+}
+
+plot1 = vis.vali(all, "Taiwan")
+plot2 = vis.vali(ce, "East")
+plot3 = vis.vali(cn, "North")
+plot4 = vis.vali(cw, "West")
+plot5 = vis.vali(cs, "South")
+
+plot1
+grid.arrange(plot2, plot3, plot4, plot5, ncol = 2)
+```
+
+From the result (not shown), it shows that it's too hard to differentiate four seasons with only precipitation data in hand. As the figure shown, one can notice that for Western & Southern Taiwan, the boundary of wet and dry seasons is crystal-clear. On the other hand, there is much rain in Northern and Eastern Taiwan all year, and both of them have slightly more precipitation in Sep and Oct. 
+
+## Temporal Clustering II
+Since it’s too hard to differentiate more than two time periods with precipitation data, in this section, this study tries adding more variables (daily, station pressure, temperature, wind speed & direction) in order to distinguish four seasons.
+
+```{r temporal clustering II, echo=FALSE, message=FALSE, warning=FALSE}
+### Main
+sddt = read.csv("Result/all_all_cluster/sdDaily_cwb_all_all.csv")
+sddt["day"] = as.Date(sddt$day, origin = as.Date("2017-12-31"))
+
+#PCA & K-means Cluster
+data.pca = prcomp(sddt[2:6])
+set.seed(1)
+data.k = kmeans(sddt[2:6], centers = 5, iter.max = 100)
+sddt["cluster"] = factor(data.k[["cluster"]])
+
+#Optimal Cluster Plot
+plot1 = fviz_nbclust(sddt[2:6], 
+                     FUNcluster = kmeans,# K-Means
+                     method = "wss",     # total within sum of square
+        ) + geom_vline(xintercept = 5, linetype = 2) + theme_minimal()
+
+#Scree Plot
+plot2 = fviz_eig(data.pca)
+
+grid.arrange(plot1, plot2, ncol=2)
+```
+
+The left figure shows that the optimal number of clusters in this case may be 5. The right figure shows that the first two principle components can explain approximately 90% of total variances, and the visualization afterward is based on these two major components.
+
+```{r temporal clustering III, echo=FALSE, message=FALSE, warning=FALSE}
+#Bi Plot
+plot3 = fviz_pca_biplot(data.pca, geom.ind = "point")
+
+#Cluster Plot
+plot4 = autoplot(data.k, data = sddt[2:6], frame = T) +
+        theme_minimal()
+
+grid.arrange(plot3, plot4, ncol=2)
+```
+
+The figure disays that Temperature (TX01) & Precipitation (PP01) have similar annual patterns, and Station Pressure (PS01), East-West Wind (WD_u) & North-South Wind (WD_v) have close annul characteristics, which are confirmed in the figure below. 
+
+```{r temporal clustering IV, echo=FALSE, message=FALSE, warning=FALSE}
+#Visual
+plot5 = ggplot(data = sddt) +
+        geom_col(aes(x = day, y = PP01, fill = "PP01(mm)")) +
+        geom_point(aes(x = day, col = cluster), y = 0, pch = 15, size = 1.5) +
+        scale_color_manual(name = "", values = c("#F8766D", "#A3A500", "#00BF7D", "#00B0F6", "#E76BF3"), breaks = "", labels = "") +
+        scale_fill_manual(name = "", values = c("PP01(mm)"="#ADD8E666")) +
+        scale_x_date(date_breaks = "1 month", date_labels = "%B", expand = c(0,0)) +
+        ylab("z-score") + ggtitle("Daily Clustering by K-means") +
+        theme_minimal() +
+        theme(axis.title.x = element_blank(),
+              axis.text.x = element_blank())
+
+plot6 = ggplot(data = sddt) +
+        geom_col(aes(x = day, y = PS01, fill = "PS01(hPa)")) +
+        geom_col(aes(x = day, y = TX01, fill = "TX01(°C)")) +
+        geom_point(aes(x = day, col = cluster), y = 0, pch = 15, size = 1.5) +
+        scale_color_manual(name = "", values = c("#F8766D", "#A3A500", "#00BF7D", "#00B0F6", "#E76BF3"), breaks = "", labels = "") +
+        scale_fill_manual(name = "", values = c("PS01(hPa)"="#ADFF2F44", "TX01(°C)"="#FF8C0044")) +
+        scale_x_date(date_breaks = "1 month", date_labels = "%B", expand = c(0,0)) +
+        ylab("z-score") +
+        theme_minimal() +
+        theme(axis.title.x = element_blank(),
+              axis.text.x = element_blank())
+
+plot7 = ggplot(data = sddt) +
+        geom_col(aes(x = day, y = WD_u, fill = "E - W(m/s)")) +
+        geom_col(aes(x = day, y = WD_v, fill = "N - S(m/s)")) +
+        geom_point(aes(x = day, col = cluster), y = 0, pch = 15, size = 1.5) +
+        scale_color_manual(name = "", values = c("#F8766D", "#A3A500", "#00BF7D", "#00B0F6", "#E76BF3"), breaks = "", labels = "") +
+        scale_fill_manual(name = "", values = c("E - W(m/s)"="#DAA52044", "N - S(m/s)"="#EE82EE44")) +
+        scale_x_date(date_breaks = "1 month", date_labels = "%B", expand = c(0,0)) +
+        ylab("z-score") +
+        theme_minimal()
+
+grid.arrange(plot5, plot6, plot7, nrow=3)
+```
+
+The figure above also tells us that the clustering result is highly depends on Temperature & Precipitation, which explicitly separates hot(![#00BF7D](https://placehold.it/15/00BF7D/000000?text=+)) and cold(![#E76BF3](https://placehold.it/15/E76BF3/000000?text=+)) seasons, however, other variables can tell more stories about details, including, warm(![#F8766D](https://placehold.it/15/F8766D/000000?text=+)) , cool(![#00B0F6](https://placehold.it/15/00B0F6/000000?text=+)) seasons and transitions(![#A3A500](https://placehold.it/15/A3A500/000000?text=+)).
+
+## Discussion
+![](discussion.png){ width=100% }
+Traditionally, according to the climatic characteristics in Taiwan, the whole year can be divided into winter (Dec to Jan), spring rain (Feb to Apr), Meiyu (May to Jun), summer (Jul to Sep) and autumn (Oct to  Nov) 5 periods[2]. Comparing with the clustering result, the transitions (Mid May & Sep) may reflect part of Meiyu, and precipitation caused by typhoons. Besides, the cold season lasts longer than general knowledge, and thus compresses others. Last but not least, it’s worthy of mentioning that the locations of stations chosen and how many stations are chosen influence the clustering result. Through the figure before, one can notice that the stations used in this study cover most of Taiwan, however, there are only 21 stations, which may not be sufficient to some rigorous studies. 
+
+## Reference
+[1] https://reurl.cc/We6n5    
+[2] https://reurl.cc/0VA3k

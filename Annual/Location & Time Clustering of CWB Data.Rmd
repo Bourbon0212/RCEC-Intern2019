@@ -1,0 +1,271 @@
+---
+title: "Location & Time Clustering of CWB Data"
+author: "Bourbon Kung"
+date: "2019/8/5"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+```{r setup, include=FALSE}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+knitr::opts_chunk$set(echo = TRUE)
+options(knitr.table.format = "html")
+```
+
+## Required Libraries
+
+```{r libraries, warning=FALSE, message=FALSE}
+setwd("D:/OneDrive - g.ntu.edu.tw/Documents/108-I/中研院環變中心實習/Annual")
+library(ggplot2) #visualization
+library(ggfortify) #autoplot
+library(ggmap) #ggplot on map
+library(ggrepel) #labels on ggplot
+library(gridExtra) #image layout
+library(factoextra) #PCA visualization
+Map <- get_stamenmap(c(118.2, 21.5, 122.5, 26.4), zoom = 8, 
+                     source = "stamen", maptype = "toner-lite") #base map
+```
+
+***
+
+## Location Clustering
+```{r monthly_table, echo=FALSE}
+data = read.csv("Result/Monthly_cwb_PP01.csv")
+kable(data) %>%
+  kable_styling() %>%
+  scroll_box(height = "300px")
+```
+
+        In this section, we want to separate the 21 CWB stations based on the mean of monthly precipitation between 1980 and 2019, and see that whether the result meets our knoweledge about the spatial distribution of the precipitation in Taiwan. The table above is the data prepared to conduct the following Principle Component Analysis (PCA) and K-Means Clustering.
+
+```{r loc_cluster1}
+#PCA & Kmeans
+set.seed(1) #make sure that the cluster result is the same
+data.pca = prcomp(data[5:16])
+data.k = kmeans(data[5:16], centers = 4)
+data["cluster"] = factor(data.k[["cluster"]])
+
+img.scree = fviz_eig(data.pca)
+img.bi = fviz_pca_biplot(data.pca, geom.ind = "point")
+grid.arrange(img.scree, img.bi, ncol=2)
+```
+
+
+        From the figures above, we can clearly see that the first two Principle Components can explain approximately 90% of variances of total variances. Furthermore, we can notice that cool seasons (Oct, Nov, Dec, Jan, Feb) and warm seasons (May, Jun, Jul, Aug) have more influences on Dim1 and Dim2, respectively, which means that the clustering (K-means) result of locations of CWB stations conducting below relies more on the cool and warm seansons than other seasons. Besides, since Dim1 explains more variances than Dim2, cool seasons are more important than warm seansons when it comes to clustering based on precipitation of different CWB sations.
+
+```{r loc_cluster2}
+img.k = autoplot(data.k, data = data[5:16], frame = T) +
+  theme_minimal()
+img.vali = ggmap(Map, darken = c(0.5, "white")) +
+  geom_point(data = data, aes(x = Lon, y = Lat, col = cluster)) +
+  geom_label_repel(data = data, aes(x = Lon, y = Lat, label = name),
+            box.padding   = 0.35, point.padding = 0.5, size = 3)
+grid.arrange(img.k, img.vali, ncol=2)
+```
+
+        Afterward, we conduct K-means clustering based on the most important two components, PC1(Dim1) & PC2(Dim2), which can explain roughly 90% of total variances. The result is shown above, which indicates that we can summarily separate all the CWB stations into four categories, North(N), West(W), Center & South(CS) and East(E). The figure above also visualizes the result by drawing those CWB stations on the map.  
+
+Cluster | Station
+--------| -------------
+N       | 鞍部、竹子湖、基隆
+W       | 梧棲、臺中、嘉義、澎湖、東吉島 
+CS      | 日月潭、阿里山、玉山、高雄、大武、恆春
+E       | 彭佳嶼、淡水、宜蘭、花蓮、成功、臺東、蘭嶼
+
+***
+
+## Time Clustering 
+
+### {.tabset .tabset-fade}
+
+#### North 
+
+```{r yearly_table_N, echo=FALSE}
+data.N = read.csv("Result/cluster2_month.csv")
+data.N$month = as.factor(data.N$month)
+data.N["mean"] = apply(data.N[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+data.N["upper"] = apply(data.N[,2:40], 1, function (x) max(x, na.rm = T))
+data.N["lower"] = apply(data.N[,2:40], 1, function (x) min(x, na.rm = T))
+
+kable(data.N) %>%
+  kable_styling() %>%
+  scroll_box(height = "300px")
+```
+
+#### West
+
+```{r yearly_table_W, echo=FALSE}
+data.W = read.csv("Result/cluster3_month.csv")
+data.W$month = as.factor(data.W$month)
+data.W["mean"] = apply(data.W[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+data.W["upper"] = apply(data.W[,2:40], 1, function (x) max(x, na.rm = T))
+data.W["lower"] = apply(data.W[,2:40], 1, function (x) min(x, na.rm = T))
+
+kable(data.W) %>%
+  kable_styling() %>%
+  scroll_box(height = "300px")
+```
+
+#### Center & South
+
+```{r yearly_table_CS, echo=FALSE}
+data.CS = read.csv("Result/cluster4_month.csv")
+data.CS$month = as.factor(data.CS$month)
+data.CS["mean"] = apply(data.CS[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+data.CS["upper"] = apply(data.CS[,2:40], 1, function (x) max(x, na.rm = T))
+data.CS["lower"] = apply(data.CS[,2:40], 1, function (x) min(x, na.rm = T))
+
+kable(data.CS) %>%
+  kable_styling() %>%
+  scroll_box(height = "300px")
+```
+
+#### East
+
+```{r yearly_table_E, echo=FALSE}
+data.E = read.csv("Result/cluster1_month.csv")
+data.E$month = as.factor(data.E$month)
+data.E["mean"] = apply(data.E[,2:40], 1, function (x) round(mean(x, na.rm = T), 3))
+data.E["upper"] = apply(data.E[,2:40], 1, function (x) max(x, na.rm = T))
+data.E["lower"] = apply(data.E[,2:40], 1, function (x) min(x, na.rm = T))
+
+kable(data.E) %>%
+  kable_styling() %>%
+  scroll_box(height = "300px")
+```
+
+###
+
+        In this section, continued with the above location clustering result, we want to separate a year into a few parts in differnt location clusters based on the monthly precipitation of 1980 to 2018, and see whether time clustering is capable of differientiating wet and dry seasons, or even four seasons in one year. The tables above are the data that prepared for time clustering for each location cluster.  
+
+### {.tabset .tabset-fade}
+
+#### North 
+```{r time_cluster_visFunc, echo=FALSE}
+vis.vali = function(data, cluster, figName) {
+  ret = ggplot(data = data) +
+              geom_col(aes_string(x = "month", y = "mean", fill = cluster)) +
+              geom_linerange(aes(x = month, ymin = lower, ymax = upper), size = 2, col = "#00000033") +
+              scale_x_discrete(labels = month.abb) +
+              theme_minimal() +
+              theme(axis.title.x = element_blank(),
+                    legend.position = 'bottom', legend.direction= 'horizontal') + 
+              ggtitle(figName)
+  return(ret)
+}
+```
+```{r time_cluster_N1}
+#PCA & Kmeans
+set.seed(1)
+data.Nk1 = kmeans(data.N[2:40], centers = 2, iter.max = 100)
+data.Nk2 = kmeans(data.N[2:40], centers = 4, iter.max = 100)
+data.Npca = prcomp(data.N[2:40])
+
+data.N["cluster1"] = factor(data.Nk1[["cluster"]])
+data.N["cluster2"] = factor(data.Nk2[["cluster"]])
+
+img.Nbi = fviz_pca_biplot(data.Npca, geom.ind = "point")
+img.Nk = autoplot(data.Nk2, data = data.N[2:40], frame = T) +
+  theme_minimal()
+grid.arrange(img.Nbi, img.Nk, ncol=2)
+```
+
+#### West
+
+```{r time_cluster_W1}
+#PCA & Kmeans
+set.seed(1)
+data.Wk1 = kmeans(data.W[2:40], centers = 2, iter.max = 100)
+data.Wk2 = kmeans(data.W[2:40], centers = 4, iter.max = 100)
+data.Wpca = prcomp(data.W[2:40])
+
+data.W["cluster1"] = factor(data.Wk1[["cluster"]])
+data.W["cluster2"] = factor(data.Wk2[["cluster"]])
+
+img.Wbi = fviz_pca_biplot(data.Wpca, geom.ind = "point")
+img.Wk = autoplot(data.Wk2, data = data.W[2:40], frame = T) +
+  theme_minimal()
+grid.arrange(img.Wbi, img.Wk, ncol=2)
+```
+
+#### Center & South
+
+```{r time_cluster_CS1}
+#PCA & Kmeans
+set.seed(1)
+data.CSk1 = kmeans(data.CS[2:40], centers = 2, iter.max = 100)
+data.CSk2 = kmeans(data.CS[2:40], centers = 4, iter.max = 100)
+data.CSpca = prcomp(data.CS[2:40])
+
+data.CS["cluster1"] = factor(data.CSk1[["cluster"]])
+data.CS["cluster2"] = factor(data.CSk2[["cluster"]])
+
+img.CSbi = fviz_pca_biplot(data.CSpca, geom.ind = "point")
+img.CSk = autoplot(data.CSk2, data = data.CS[2:40], frame = T) +
+  theme_minimal()
+grid.arrange(img.CSbi, img.CSk, ncol=2)
+```
+
+#### East
+
+```{r time_cluster_E1}
+#PCA & Kmeans
+set.seed(1)
+data.Ek1 = kmeans(data.E[2:40], centers = 2, iter.max = 100)
+data.Ek2 = kmeans(data.E[2:40], centers = 4, iter.max = 100)
+data.Epca = prcomp(data.E[2:40])
+
+data.E["cluster1"] = factor(data.Ek1[["cluster"]])
+data.E["cluster2"] = factor(data.Ek2[["cluster"]])
+
+img.Ebi = fviz_pca_biplot(data.Epca, geom.ind = "point")
+img.Ek = autoplot(data.Ek2, data = data.E[2:40], frame = T) +
+  theme_minimal()
+grid.arrange(img.Wbi, img.Wk, ncol=2)
+```
+
+### {.tabset .tabset-fade}
+
+#### North 
+
+```{r time_cluster_N2}
+img.Nvali1 = vis.vali(data.N, "cluster1", "Northern Taiwan, 2")
+img.Nvali2 = vis.vali(data.N, "cluster2", "Northern Taiwan, 4")
+grid.arrange(img.Nvali1, img.Nvali2, ncol=2)
+```
+
+#### West
+
+```{r time_cluster_W2}
+img.Wvali1 = vis.vali(data.W, "cluster1", "Western Taiwan, 2")
+img.Wvali2 = vis.vali(data.W, "cluster2", "Western Taiwan, 4")
+grid.arrange(img.Wvali1, img.Wvali2, ncol=2)
+```
+
+#### Center & South
+
+```{r time_cluster_CS2}
+img.CSvali1 = vis.vali(data.CS, "cluster1", "Southern Taiwan, 2")
+img.CSvali2 = vis.vali(data.CS, "cluster2", "Southern Taiwan, 4")
+grid.arrange(img.CSvali1, img.CSvali2, ncol=2)
+```
+
+#### East
+
+```{r time_cluster_E2}
+img.Evali1 = vis.vali(data.E, "cluster1", "Eastern Taiwan, 2")
+img.Evali2 = vis.vali(data.E, "cluster2", "Eastern Taiwan, 4")
+grid.arrange(img.Evali1, img.Evali2, ncol=2)
+```
+
+###
+
+        From the figures above, we can understand that it's too hard to differentiate four seasons with only these precipitation data in hand. Besides, we can notice that for Western & Southern Taiwan, the boundary of wet and dry seasons is clear. On the other hand, there is much rain in Northern and Eastern Taiwan all year, and both of them have slightly more precipitation in Sep and Oct. 
+
+***
